@@ -28,7 +28,7 @@ If pca_initial is 0, then pick which layer. From 1 to 3 for intermediate layers,
 If pca_initial is 0, this will bunch the dots on the plot by a given characteristic. The default is 0, for bunching by sequences. 1 is for averaging by word. 
 
 ```
---pca__labels_
+--pca__labels
 ```
 Give the string presentation of a dictionary. Keys will be labels to color the pca plot by, values are lists of the indices of the dots for a given color.
 

@@ -231,7 +231,7 @@ def get_parser():
                         help="Choose the layer. -1 is the final embedding. Might need to be a negative number. If Larger than #layers, does nothing.")
     parser.add_argument("--pca_dim", type=int, default=2,
                         help="Choose the dimension of the plot. Default is 2D, can also choose 3 for 3D.")
-    parser.add_argument("--pca_initial", type=int, default=0,
+    parser.add_argument("--pca_initial", type=int, default=1,
                         help="If pca on the initial embeddings. 1 (default) for yes, 0 for no")
     parser.add_argument("--pca_labels", type=str, default="{}")
     parser.add_argument("--pca_bychar", type=int, default=0) #options: 0 for one dot per sequence, 1 for one dot per word, and 2 for one dot per position
