@@ -221,20 +221,54 @@ def get_parser():
 
 
     # PCA plotting
-    parser.add_argument("--pca_id", type=str, default="",
-                        help="Title of the experiment for plots and saving")
     parser.add_argument("--pca_plot", type=bool_flag, default=False,
-                        help="Plots some 2D PCA at either the initial embedding or hidden layer, to be determined via --pca_layer and --pca_initial")
+                        help="""Generates a 2D PCA plot of either the initial embeddings or transformer layer representations. 
+                    The specific layer is determined by the `--pca_initial` and `--pca_layer` parameters.""")
+    parser.add_argument("--pca_id", type=str, default="",
+                        help="Sets the experiment title, which will be used in the title of the PCA plot.")
     parser.add_argument("--store_outputs", type=bool_flag, default=False,
-                        help="Determines whether to store outputs. Is overwritten if we do a pca plot.")
-    parser.add_argument("--pca_layer", type=int, default=-1,
-                        help="Choose the layer. -1 is the final embedding. Might need to be a negative number. If Larger than #layers, does nothing.")
-    parser.add_argument("--pca_dim", type=int, default=2,
-                        help="Choose the dimension of the plot. Default is 2D, can also choose 3 for 3D.")
+                        help="Determines whether to store model outputs. This setting is overridden if `--pca_plot` is enabled.")
+    
+
     parser.add_argument("--pca_initial", type=int, default=1,
-                        help="If pca on the initial embeddings. 1 (default) for yes, 0 for no")
-    parser.add_argument("--pca_labels", type=str, default="{}")
-    parser.add_argument("--pca_bychar", type=int, default=0) #options: 0 for one dot per sequence, 1 for one dot per word, and 2 for one dot per position
+                        help="""Specifies whether to perform PCA on the initial embeddings.
+                    
+                    - `1` (default when `--pca_plot=True`): Perform PCA on the initial embeddings. This setting overrides `--pca_layer`.
+                    - `0`: Perform PCA on a transformer layer specified by `--pca_layer`.""")
+    
+    parser.add_argument("--pca_layer", type=int, default=-1,
+                        help="""Specifies the transformer layer to use when performing PCA (`--pca_plot=True`) and `--pca_initial=0`.
+                    
+                    - Default is `-1`, which selects the final layer.
+                    - If not the default, it needs to be a number between 1 and #transformer layers.
+                    - If set to a value greater than the number of layers in the model, no plot is generated.""")
+    
+    parser.add_argument("--pca_labels", type=str, default="",
+                    help="""Determines the coloring of labels in the PCA plot.
+
+                    - By default, labels are colored using a rainbow gradient:
+                      - Based on tokens if `pca_initial == 1`
+                      - Based on input indices when plotting hidden states (`pca_initial == 0`)
+
+                    - To use custom label coloring, provide a path to a JSON file containing a dictionary:
+                      - Keys: Integers in the range `[0, n-1]`, where `n` is the number of colors.
+                      - Values: Lists of either:
+                        - Words (if `pca_initial == 1`) to assign the same color to related words.
+                        - Input indices (if `pca_initial == 0`) to assign the same color to specific input positions.
+
+                    This allows manual grouping of labels into clusters with the same color.""")
+    
+    parser.add_argument("--pca_legend", type=int, default=0,
+                        help="""Determines whether to include a legend for each color.
+
+                    - `0` (default): Does not include the legend.
+                    - `1`: Includes the legend.""")
+    
+    parser.add_argument("--interactive", type=int, default=0,
+                        help="""Determines the format of the PCA plot output.
+
+                    - `0` (default): Returns a static PNG plot.
+                    - `1`: Generates an interactive HTML plot. NOT SUPPORTED AT THE MOMENT.""")
     
 
     # debug

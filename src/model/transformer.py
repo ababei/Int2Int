@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 import os
+import json
 from logging import getLogger
 import math
 import itertools
@@ -439,27 +440,31 @@ class TransformerModel(nn.Module):
         self.pca_plot=params.pca_plot #Default = 0 = no
         self.pca_layer = params.pca_layer #Default: 0 = initial embedding. If > # layers, does nothing
         self.pca_initial=params.pca_initial #Default 1 (yes)
+        self.interactive=params.interactive #Default 0 (no)
+        self.pca_legend=params.pca_legend #Default 0 (no)
+
+        if params.pca_labels=='':
+            self.pca_labels={}
+        else:
+            try:
+                # Read the JSON file
+                with open(params.pca_labels, "r", encoding="utf-8") as f:
+                    self.pca_labels = json.load(f)
+                
+                # Ensure it's a dictionary with the expected types
+                if isinstance(self.pca_labels, dict) and all(
+                    isinstance(k, str) and k.isdigit() and isinstance(v, list) and all(isinstance(i, int) for i in v)
+                    for k, v in self.pca_labels.items()
+                ):
+                    # Convert string keys to integers
+                    self.pca_labels = {int(k): v for k, v in self.pca_labels.items()}
+                    print("Loaded and validated dictionary correctly")
+                else:
+                    print("The structure of the dictionary is not as expected.")
+
+            except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
+                print("Failed to read or parse the JSON file:", e)
         
-        #Dictionary that gives which labels should have different colors. For the initial embedding it will be ordered by size, one color per vocabulary.
-        
-        try:
-            # Safely evaluate the string to reconstruct the dictionary
-            self.pca_labels = ast.literal_eval(params.pca_labels)
-            
-            # Ensure it's a dictionary with the expected types
-            if isinstance(self.pca_labels, dict) and all(
-                isinstance(k, int) and isinstance(v, list) and all(isinstance(i, int) for i in v)
-                for k, v in self.pca_labels.items()
-            ):
-                print("Reconstructed dictionary correctly")
-            else:
-                print("The structure of the dictionary is not as expected.")
-        except (ValueError, SyntaxError) as e:
-            print("Failed to evaluate the string:", e)
-        #self.pca_labels=params.pca_labels 
-        
-        
-        self.pca_bychar=params.pca_bychar #One dot per 0. sequence, 1. word, 2. position
 
         if self.pca_plot:
             self.store_outputs=True
@@ -520,14 +525,25 @@ class TransformerModel(nn.Module):
             raise Exception("Unknown mode: %s" % mode)
 
 
-    def pcaplots2(self, pca_result, all_words, highlight_words, title_long, title_short, labs={}):
+    def pcaplots_png(self, pca_result, all_words, highlight_words, title_long, title_short, labs={}):
+        # Helper function to safely convert a word to an integer, returning None for non-integer words
+        def safe_to_int(word):
+            try:
+                return int(word)
+            except ValueError:
+                return None
+
         # Map words to their corresponding label
         word_labels = []
         for word in all_words:
-            assigned_label = next((label for label, indices in labs.items() if int(word) in indices), None)
+            word_as_int = safe_to_int(word)  # Convert word to integer if possible
+            assigned_label = next(
+                (label for label, indices in labs.items() if word_as_int in indices or word in indices),
+                None
+            )
             word_labels.append(assigned_label if assigned_label is not None else -1)
 
-        # Prepare data for Plotly
+        # Prepare data
         df = pd.DataFrame({
             'PC1': pca_result[:, 0],
             'PC2': pca_result[:, 1],
@@ -547,60 +563,70 @@ class TransformerModel(nn.Module):
         for idx, label in enumerate(labels_without_minus1):
             # Normalize index to [0, 1)
             color = cmap(idx / num_labels)
-            color_hex = mcolors.rgb2hex(color)
-            label_colors[label] = color_hex
+            label_colors[label] = color
 
         label_colors[-1] = 'gray'  # For words without a label
 
         # Create a figure
-        fig = go.Figure()
+        fig, ax = plt.subplots(figsize=(10, 8))
 
-        # Plot each label as a separate trace
+        # Depending on number of dots in the scatter plot, determine circle and font sizes and whether to show text labels 
+        show_text_labels = len(df) < 300
+        if len(df) < 300:
+            dot_size=200; fonts=16
+        else:
+            dot_size=50; fonts=8
+
+        # Plot each label as a separate scatter
         for label in unique_labels:
             df_label = df[df['Label'] == label]
-            fig.add_trace(go.Scatter(
-                x=df_label['PC1'],
-                y=df_label['PC2'],
-                mode='markers',
-                name=f'Label {label}',
-                marker=dict(
-                    size=8,
+            ax.scatter(df_label['PC1'], df_label['PC2'],
+                    s=dot_size,  # marker size
                     color=label_colors[label],
-                    opacity=0.5,
-                ),
-                text=df_label['Word'],
-                customdata=df_label['Label'],
-                hovertemplate='Word: %{text}<br>Label: %{customdata}<extra></extra>'
-            ))
+                    alpha=0.5,
+                    label=f'{int(label)}'
+                    )
+
+        # Annotate words if there are fewer than 300 points
+        if show_text_labels:
+            for i, row in df.iterrows():
+                ax.annotate(row['Word'], (row['PC1'], row['PC2']),
+                            textcoords="offset points", xytext=(0, 5), ha='center', fontsize=fonts)
 
         # Update layout
-        fig.update_layout(
-            title=title_long,
-            xaxis_title='PC1',
-            yaxis_title='PC2',
-            legend_title='Labels',
-            template='plotly_white'
-        )
-        print(f"Path is {self.pca_path}")
-        save_path = os.path.join(self.pca_path, f"{title_short}.html")
+        ax.set_title(title_long)
+        ax.set_xlabel('PC1')
+        ax.set_ylabel('PC2')
+        if self.pca_legend==1:
+            ax.legend(title='Labels')
 
-    # Save the plot to the specified location
-        fig.write_html(save_path)
+        # Set axis limits
+        #ax.set_xlim(-6, 6)  # Set x-axis range
+        #ax.set_ylim(-10, 10)  # Set y-axis range
+
+        # Save the plot to the specified location
+        #print(f"Path is {self.pca_path}")
+        save_path = os.path.join(self.pca_path, f"{title_short}.png")
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=300)
+        plt.close(fig)
         print(f"Plot saved to {save_path}")
-        # Save and show the plot
-       # fig.write_html(title_short + '.html')
 
-    def pca_plots(self, causal,  all_words, highlight_words, labs={}, src_enc=None, src_len=None):
+
+
+    
+    def pca_plots(self, all_words, highlight_words, interactive=0, labs={}, src_enc=None, src_len=None):
         model_type = 'Encoder' if self.is_encoder else 'Decoder'
         x = torch.tensor([self.word2id[item] for item in all_words]).unsqueeze(0)
         x = x.long()
-        bs, slen = x.size()
-        #print(f"in pca_plots, slen is {slen}, bs is {bs}, and constant shape of x is {x.shape}")
+        bs, _ = x.size()
+
         assert (src_enc is None) == (src_len is None)
         if src_enc is not None:
             assert self.is_decoder
             assert src_enc.size(0) == bs
         x = x.to(self.embeddings.weight.device)
+        #print(x[0])
             
         tensor = self.embeddings(x)
         tensor = tensor.squeeze(0).cpu().numpy()
@@ -611,11 +637,13 @@ class TransformerModel(nn.Module):
             explained_variance = pca.explained_variance_ratio_
             total_variance_explained = explained_variance.sum()
 
-            print(f"Variance explained by each component: {explained_variance}")
-            print(f"Total variance explained by the first 2 components: {total_variance_explained * 100:.2f}%")
-            title_long = 'Plot of initial embeddings in experiment '+ self.pca_id+" in " +model_type
-            title_short = model_type + "_initial_emb_layer"+'_'+str(randint(1, 10000))
-            self.pcaplots2(pca_result, all_words, highlight_words, title_long, title_short, labs=labs)
+            #print(f"Variance explained by each component: {explained_variance}")
+            #print(f"Total variance explained by the first 2 components: {total_variance_explained * 100:.2f}%")
+            title_long = 'Plot of initial embeddings in experiment '+ self.pca_id
+            title_short = model_type + "_initial_emb"+'_'+str(randint(1, 10000))
+
+            self.pcaplots_png(pca_result, all_words, highlight_words, title_long, title_short, labs=labs)
+
 
 
 
@@ -705,99 +733,75 @@ class TransformerModel(nn.Module):
     
             tensor *= mask.unsqueeze(-1).to(tensor.dtype)
             if TransformerModel.STORE_OUTPUTS and not self.training:
-                print(f"Layer {i} has tensor shape {tensor.shape}")
+                #print(f"Layer {i} has tensor shape {tensor.shape}")
                 self.outputs.append(tensor.detach().cpu())
-
+        
+        def custom_sort_key(s):
+            if s in ["+", "-"]:
+                # Assign high priority to "+" and "-" to sort them first
+                return (0, s)
+            else:
+                # Convert numeric strings to integers for proper sorting
+                return (1, int(s))
+        
         if self.pca_plot:
             stop_plotting=False
             if self.outputs != []:
                 ## First case: initial embedding
                 if self.pca_initial==1:
-                    voc=[]
-                    tokens_indices = x.cpu().numpy().flatten() 
-                    for i in range(len(tokens_indices)):
-                        word=self.id2word[tokens_indices[i]]
-                        if word.isdigit():
-                            if word not in voc:
-                                voc.append(word)
-                    voc.sort(key=int)   
-                    print(f"Last word is {word} of type{type(word)}")        
-                    print(f"Vocabulary has length {len(voc)} and shape {voc}")
-                    label_by={i:[int(voc[i])] for i in range(len(voc))}
-                    self.pca_plots(causal, voc, voc, labs=label_by)
+                    if model_type=="Encoder":
+                        voc=[]
+                        tokens_indices = x.cpu().numpy().flatten() 
+                        for i in range(len(tokens_indices)):
+                            word=self.id2word[tokens_indices[i]]
+                            if word.isdigit() or word=='+' or word=='-':
+                                if word not in voc:
+                                    voc.append(word)
+                        voc = sorted(voc, key=custom_sort_key)
+                        #print(f"Last word is {word} of type{type(word)}")        
+                        #print(f"Vocabulary has length {len(voc)} and shape {voc}")
+                        if self.pca_labels=={}:
+                            label_by={0:['+', '-', voc[0]]} | {i:[int(voc[i])] for i in range(3, len(voc))}
+                        else:
+                            label_by={0:['+', '-']} | {int(k)+1: v for k, v in self.pca_labels.items()}
+                        self.pca_plots(voc, voc, interactive=self.interactive, labs=label_by)
                 else:
                     if self.pca_layer < len(self.outputs):
                         layer_output = self.outputs[self.pca_layer]
                         output_np = layer_output.cpu().numpy()
-                        print(f"Output has size {output_np.shape}")
+                        #print(f"Output has size {output_np.shape}")
 
 
                         ### NOW, DEPENDING ON THE CHARACTERISTIC OF THE PLOT, DECIDE THE DATA_FOR_PCA SHAPE AND DOT LABEL FOR PLOT
-                        if self.pca_bychar == 0: #so the default is by sequence
-                            all_words=[str(i) for i in range(x.shape[0])]
-                            highlight_words=all_words
-                            data_for_pca= output_np[:, -1, :]
-                            if self.pca_labels!={}:
-                                label_by=self.pca_labels
-                            else:
-                                label_by={i:[i] for i in range(len(all_words))}
-                        elif self.pca_bychar == 1: #now by word
-                            tokens_indices = x.cpu().numpy().flatten() 
-                            all_words=[]
-                            all_words_idx={}
-                            for i in range(len(tokens_indices)):
-                                word=self.id2word[tokens_indices[i]]
-                                if word.isdigit():
-                                    if word in all_words_idx.keys():
-                                        all_words_idx[word].append(i)
-                                    else:
-                                        all_words_idx[word]=[i]
-                                        all_words.append(word)
-                            print(f"Vocabulary has length {len(all_words)}")
-                            highlight_words=all_words
-                            data_for_pca=output_np.reshape(-1, output_np.shape[2])
-                            average_rows = []
-                            for word in all_words:
-                                indices = all_words_idx[word]  # Get the indices for the word
-                                # Get the subarray from data_for_pca for the indices
-                                subarray = data_for_pca[indices]
-                                # Compute the average row
-                                average_row = np.mean(subarray, axis=0)
-                                # Append the average row to the list
-                                average_rows.append(average_row)
-                            sorted_words=sorted(all_words, key=int)
-                            print(f"sorted words are {sorted_words}")
-                            # Concatenate all average rows into a single array
-                            if len(average_rows)>0:
-                                data_for_pca = np.vstack(average_rows)  # Stack rows vertically
-                                label_by={i:[int(sorted_words[i])] for i in range(len(sorted_words))}
-                            else:
-                                stop_plotting=True
-                        elif self.pca_bychar == 2: #now by position
-                            all_words=[str(i) for i in range(x.shape[1])]
-                            highlight_words=all_words
-                            data_for_pca= output_np.mean(axis=0)
-                            if data_for_pca.shape[0] <= 2: stop_plotting=True
-                            label_by={i:[int(all_words[i])] for i in range(len(all_words))}
-
+                        all_words=[str(i) for i in range(x.shape[0])]
+                        highlight_words=all_words
+                        data_for_pca= output_np[:, -1, :]
+                        if self.pca_labels!={}:
+                            label_by=self.pca_labels
+                        else:
+                            label_by={i:[i] for i in range(len(all_words))}
+                        
                         if not stop_plotting:
                             ### Plotting
-                            print(f"PCA data has shape {data_for_pca.shape}")
+                            #print(f"PCA data has shape {data_for_pca.shape}")
                             pca = PCA(n_components=2)
                             pca_result = pca.fit_transform(data_for_pca)    
-                            print("pca result shape", pca_result.shape)
+                            #print("pca result shape", pca_result.shape)
                             explained_variance = pca.explained_variance_ratio_
                             total_variance_explained = explained_variance.sum()
-                            print(f"Variance explained by each component: {explained_variance}")
-                            print(f"Total variance explained by the first 2 components: {total_variance_explained * 100:.2f}%")
+                            #print(f"Variance explained by each component: {explained_variance}")
+                            #print(f"Total variance explained by the first 2 components: {total_variance_explained * 100:.2f}%")
+                            #print("The first line is", x[0])
                             if self.pca_layer==-1:
                                 title_long = 'Plot of final hidden state in experiment ' + self.pca_id+" in " +model_type
                                 title_short = model_type + "_final_hidden_state_layer"+"_"+str(randint(1, 10000))
-                                self.pcaplots2(pca_result, all_words, highlight_words, title_long, title_short, labs=label_by)
+                                #title_long=str(x[0])
+                                self.pcaplots_png(pca_result, all_words, highlight_words, title_long, title_short, labs=label_by)
                             else:
                                 title_long = 'Plot of hidden state '+str(self.pca_layer) +" in experiment " + self.pca_id+" in " +model_type
                                 title_short = model_type + "_hidden_state_layer"+str(self.pca_layer)+"_"+str(randint(1, 10000))
-                                self.pcaplots2(pca_result, all_words, highlight_words, title_long, title_short, labs=label_by)
+                                #title_long=str(x[0])
+                                self.pcaplots_png(pca_result, all_words, highlight_words, title_long, title_short, labs=label_by)
 
 
 
