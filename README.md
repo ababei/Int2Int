@@ -23,12 +23,26 @@ as either 0 (default) or 1. Choose 1 for plotting the initial embedding, otherwi
 If pca_initial is 0, then pick which layer. From 1 to 3 for intermediate layers, -1 to default to the last layer.
 
 ```
---pca_bychar
+
 ```
-If pca_initial is 0, this will bunch the dots on the plot by a given characteristic. The default is 0, for bunching by sequences. 1 is for averaging by word. 
+--pca_legend
+```
+as either 0 (default) or 1. Choose 1 to add a legend to your plot that specifies each separate color.
 
 ```
 --pca__labels
 ```
-Give the string presentation of a dictionary. Keys will be labels to color the pca plot by, values are lists of the indices of the dots for a given color.
+Determines the coloring of labels in the PCA plot.
+
+                    - By default, labels are colored using a rainbow gradient:
+                      - Based on tokens if `pca_initial == 1`
+                      - Based on input indices when plotting hidden states (`pca_initial == 0`)
+
+                    - To use custom label coloring, provide a path to a JSON file containing a dictionary:
+                      - Keys: Integers in the range `[0, n-1]`, where `n` is the number of colors.
+                      - Values: Lists of either:
+                        - Words (if `pca_initial == 1`) to assign the same color to related words.
+                        - Input indices (if `pca_initial == 0`) to assign the same color to specific input positions.
+
+                    This allows manual grouping of labels into clusters with the same color.
 
