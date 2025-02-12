@@ -761,9 +761,9 @@ class TransformerModel(nn.Module):
                         #print(f"Last word is {word} of type{type(word)}")        
                         #print(f"Vocabulary has length {len(voc)} and shape {voc}")
                         if self.pca_labels=={}:
-                            label_by={0:['+', '-', voc[0]]} | {i:[int(voc[i])] for i in range(3, len(voc))}
+                            label_by={i-2:[int(voc[i])] for i in range(2, len(voc))}
                         else:
-                            label_by={0:['+', '-']} | {int(k)+1: v for k, v in self.pca_labels.items()}
+                            label_by=self.pca_labels
                         self.pca_plots(voc, voc, interactive=self.interactive, labs=label_by)
                 else:
                     if self.pca_layer < len(self.outputs):
