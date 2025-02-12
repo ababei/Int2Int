@@ -30,7 +30,7 @@ If pca_initial is 0, then pick which layer. From 1 to 3 for intermediate layers,
 as either 0 (default) or 1. Choose 1 to add a legend to your plot that specifies each separate color.
 
 ```
---pca__labels
+--pca_labels
 ```
 Determines the coloring of labels in the PCA plot.
 
