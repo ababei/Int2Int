@@ -23,8 +23,6 @@ as either 0 (default) or 1. Choose 1 for plotting the initial embedding, otherwi
 If pca_initial is 0, then pick which layer. From 1 to 3 for intermediate layers, -1 to default to the last layer.
 
 ```
-
-```
 --pca_legend
 ```
 as either 0 (default) or 1. Choose 1 to add a legend to your plot that specifies each separate color.
