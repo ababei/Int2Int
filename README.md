@@ -30,17 +30,12 @@ as either 0 (default) or 1. Choose 1 to add a legend to your plot that specifies
 ```
 --pca_labels
 ```
-Determines the coloring of labels in the PCA plot.
-
-                    - By default, labels are colored using a rainbow gradient:
-                      - Based on tokens if `pca_initial == 1`
-                      - Based on input indices when plotting hidden states (`pca_initial == 0`)
-
-                    - To use custom label coloring, provide a path to a JSON file containing a dictionary:
-                      - Keys: Integers in the range `[0, n-1]`, where `n` is the number of colors.
-                      - Values: Lists of either:
-                        - Words (if `pca_initial == 1`) to assign the same color to related words.
-                        - Input indices (if `pca_initial == 0`) to assign the same color to specific input positions.
-
-                    This allows manual grouping of labels into clusters with the same color.
-
+Determines the coloring of labels in the PCA plot. 
+By default, labels are colored using a rainbow gradient:
+- Based on tokens if `pca_initial == 1`
+- Based on input indices when plotting hidden states (`pca_initial == 0`)
+- To use custom label coloring and manually group labels into clusters with the same color, provide a path to a JSON file containing a dictionary:
+- Keys: Integers in the range `[0, n-1]`, where `n` is the number of colors.
+- Values: Lists of either:
+   - Words (if `pca_initial == 1`) to assign the same color to related words.
+   - Input indices (if `pca_initial == 0`) to assign the same color to specific input positions.
